@@ -9,8 +9,17 @@ from typing import Dict, List, Optional, Tuple
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+if load_dotenv:
+    load_dotenv()
+
 DB_PATH = os.getenv("RPG_DB_PATH", "rpg_bot.db")
 HUNT_COOLDOWN_SECONDS = 45
+BOT_OWNER_ID = int(os.getenv("BOT_OWNER_ID", "0"))
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -268,7 +277,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Selamat datang di RPG Bot!\n"
         "Perintah utama:\n"
-        "/profile, /hunt, /inventory, /item, /shop, /battle, /guild, /leaderboard, /trade"
+        "/profile, /hunt, /inventory, /item, /shop, /battle, /guild, /leaderboard, /trade\n"
+        f"Owner ID: {BOT_OWNER_ID if BOT_OWNER_ID else 'belum diset'}"
     )
 
 
@@ -563,6 +573,8 @@ def main() -> None:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
         raise RuntimeError("Set TELEGRAM_BOT_TOKEN sebelum menjalankan bot.")
+    if BOT_OWNER_ID <= 0:
+        logger.warning("BOT_OWNER_ID belum diset. Set di environment/.env agar fitur owner siap dipakai.")
 
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", cmd_start))
