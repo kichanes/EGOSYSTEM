@@ -76,6 +76,37 @@ Contoh damage saat battle:
 ## Sistem drop RNG
 Setiap monster punya tabel drop sendiri (contoh Slime: gel/potion/wood_sword) dengan peluang berbeda. Bonus drop rate dari accessory akan menambah peluang drop.
 
+## World progression Lv 1–75
+- Beginner: Lv 1–15
+- Mid: Lv 15–40
+- Late: Lv 40–60
+- Endgame: Lv 60–75
+
+Bot sekarang punya 12 area progression:
+1. Forest (Lv 1–5)
+2. Desert (Lv 5–10)
+3. Mountain (Lv 10–15)
+4. Ocean (Lv 15–20)
+5. Volcano (Lv 20–25)
+6. Dark Forest (Lv 25–30)
+7. Kingdom War (Lv 30–35)
+8. Ice Land (Lv 35–40)
+9. Sky Realm (Lv 40–45)
+10. Abyss (Lv 45–55)
+11. Celestial Realm (Lv 55–65)
+12. Void Dimension (Lv 65–75)
+
+### Scaling system
+- HP monster: +25% per area
+- ATK monster: +15% per area
+- Gold drop: +20% per area
+- EXP drop: +25% per area
+
+### Unlock system
+- Kalahkan boss area sekarang untuk unlock area berikutnya.
+- Cek/pindah area dengan `/area` dan `/area move <id>`.
+- Lawan boss dengan `/boss`.
+
 ## Cara jalankan
 1. Install dependency:
    ```bash
