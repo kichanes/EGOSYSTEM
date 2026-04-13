@@ -105,6 +105,23 @@ class RPGRepository:
                 );
                 """
             )
+            self._migrate_players_columns(conn)
+
+    def _migrate_players_columns(self, conn: sqlite3.Connection) -> None:
+        existing_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(players)").fetchall()
+        }
+        required_columns = {
+            "defense": "INTEGER NOT NULL DEFAULT 5",
+            "area": "TEXT NOT NULL DEFAULT 'Grassland'",
+            "gems": "INTEGER NOT NULL DEFAULT 0",
+            "weapon": "TEXT NOT NULL DEFAULT 'Wooden Sword'",
+            "armor": "TEXT NOT NULL DEFAULT 'Leather Armor'",
+            "pet": "TEXT NOT NULL DEFAULT 'None'",
+        }
+        for col, definition in required_columns.items():
+            if col not in existing_cols:
+                conn.execute(f"ALTER TABLE players ADD COLUMN {col} {definition}")
 
     def ensure_player(self, user_id: int, username: Optional[str]) -> None:
         with self._connect() as conn:
@@ -234,7 +251,7 @@ class RPGRepository:
     def get_leaderboard(self, limit: int = 10) -> List[sqlite3.Row]:
         with self._connect() as conn:
             cur = conn.execute(
-                "SELECT username, level, exp, gold FROM players ORDER BY level DESC, exp DESC, gold DESC LIMIT ?",
+                "SELECT user_id, username, level, exp, gold FROM players ORDER BY level DESC, exp DESC, gold DESC LIMIT ?",
                 (limit,),
             )
             return cur.fetchall()
@@ -262,6 +279,22 @@ class RPGRepository:
 repo = RPGRepository(DB_PATH)
 
 
+def build_exp_bar(current: int, target: int, width: int = 10) -> str:
+    if target <= 0:
+        return "▱" * width
+    ratio = max(0.0, min(1.0, current / target))
+    filled = int(round(ratio * width))
+    return "▰" * filled + "▱" * (width - filled)
+
+
+def get_player_rank(user_id: int) -> Optional[int]:
+    board = repo.get_leaderboard(limit=10000)
+    for idx, row in enumerate(board, start=1):
+        if row["user_id"] == user_id:
+            return idx
+    return None
+
+
 def parse_user_id(raw: str) -> Optional[int]:
     try:
         if raw.startswith("@"):
@@ -286,13 +319,27 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     user = update.effective_user
     repo.ensure_player(user.id, user.username)
     p = repo.get_player(user.id)
+    rank = get_player_rank(user.id)
+    exp_target = p["level"] * 100
+    exp_bar = build_exp_bar(p["exp"], exp_target)
+    inventory_count = sum(row["quantity"] for row in repo.get_inventory(user.id))
     await update.message.reply_text(
-        f"👤 {p['username']}\n"
-        f"Level: {p['level']}\n"
-        f"EXP: {p['exp']}/{p['level']*100}\n"
-        f"Gold: {p['gold']}\n"
-        f"HP: {p['hp']}/{p['max_hp']}\n"
-        f"Attack: {p['attack']}"
+        "╔═══════════〔 PROFILE 〕═══════════╗\n"
+        f"👤 Nama     : {p['username']}\n"
+        f"🎖️ Level    : {p['level']} (EXP: {p['exp']}/{exp_target})\n"
+        f"📊 EXP Bar  : {exp_bar}\n"
+        f"🌍 Area     : {p['area']}\n"
+        f"❤️ HP       : {p['hp']} / {p['max_hp']}\n"
+        f"⚔️ ATK      : {p['attack']}\n"
+        f"🛡️ DEF      : {p['defense']}\n\n"
+        f"💰 Gold     : {p['gold']:,}\n"
+        f"💎 Gems     : {p['gems']:,}\n\n"
+        f"🗡️ Weapon   : {p['weapon']}\n"
+        f"🛡️ Armor    : {p['armor']}\n\n"
+        f"🎒 Inventory: {inventory_count} items\n"
+        f"🐾 Pet      : {p['pet']}\n\n"
+        f"🏆 Rank     : #{rank if rank else '-'}\n"
+        "╚══════════════════════════════════╝"
     )
 
 

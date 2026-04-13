@@ -18,6 +18,30 @@ Bot Telegram RPG sederhana dengan komponen:
 - `/leaderboard`
 - Trading (`/trade offer` dan `/trade accept`)
 
+## Contoh tampilan `/profile`
+```text
+╔═══════════〔 PROFILE 〕═══════════╗
+👤 Nama     : Username
+🎖️ Level    : 12 (EXP: 120/200)
+📊 EXP Bar  : ▰▰▰▰▰▱▱▱▱▱
+🌍 Area     : Volcano
+❤️ HP       : 180 / 200
+⚔️ ATK      : 35
+🛡️ DEF      : 20
+
+💰 Gold     : 1,250
+💎 Gems     : 50
+
+🗡️ Weapon   : Flame Sword
+🛡️ Armor    : Iron Armor
+
+🎒 Inventory: 5 items
+🐾 Pet      : Fire Wolf
+
+🏆 Rank     : #15
+╚══════════════════════════════════╝
+```
+
 ## Cara jalankan
 1. Install dependency:
    ```bash
