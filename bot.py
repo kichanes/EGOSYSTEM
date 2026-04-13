@@ -46,17 +46,41 @@ MONSTERS: List[Monster] = [
 ]
 
 SHOP_ITEMS: Dict[str, Dict[str, object]] = {
-    "potion": {"price": 25, "type": "consumable", "heal": 30},
-    "hi_potion": {"price": 80, "type": "consumable", "heal": 80},
-    "wood_sword": {"price": 90, "type": "weapon", "name": "Wood Sword", "atk": 5, "crit": 0},
-    "iron_sword": {"price": 180, "type": "weapon", "name": "Iron Sword", "atk": 10, "crit": 0},
-    "flame_sword": {"price": 350, "type": "weapon", "name": "Flame Sword", "atk": 12, "crit": 10},
-    "iron_armor": {"price": 220, "type": "armor", "name": "Iron Armor", "hp": 20, "def": 8},
+    "potion": {"price": 25, "type": "consumable", "name": "Potion", "heal": 30, "rarity": "Common"},
+    "elixir": {"price": 70, "type": "consumable", "name": "Elixir", "exp": 40, "rarity": "Uncommon"},
+    "antidote": {"price": 45, "type": "consumable", "name": "Antidote", "cure": "poison", "rarity": "Common"},
+    "wood_sword": {"price": 90, "type": "weapon", "name": "Wood Sword", "atk": 5, "crit": 0, "rarity": "Common"},
+    "iron_sword": {"price": 180, "type": "weapon", "name": "Iron Sword", "atk": 10, "crit": 0, "rarity": "Rare"},
+    "flame_sword": {"price": 350, "type": "weapon", "name": "Flame Sword", "atk": 12, "crit": 10, "rarity": "Epic"},
+    "iron_armor": {"price": 220, "type": "armor", "name": "Iron Armor", "hp": 20, "def": 8, "rarity": "Rare"},
+    "ring_of_luck": {"price": 300, "type": "accessory", "name": "Ring of Luck", "drop_rate": 5, "rarity": "Epic"},
+    "amulet_of_power": {"price": 320, "type": "accessory", "name": "Amulet of Power", "atk": 5, "def": 5, "rarity": "Epic"},
+    "wood": {"price": 10, "type": "material", "name": "Wood", "rarity": "Common"},
+    "iron": {"price": 20, "type": "material", "name": "Iron", "rarity": "Uncommon"},
+    "crystal": {"price": 45, "type": "material", "name": "Crystal", "rarity": "Rare"},
+    "dungeon_key": {"price": 200, "type": "special", "name": "Dungeon Key", "rarity": "Legendary"},
 }
 
 PET_BONUS: Dict[str, Dict[str, int]] = {
     "None": {"atk": 0, "def": 0, "hp": 0},
     "Fire Wolf": {"atk": 5, "def": 0, "hp": 0},
+}
+
+RARITY_ICON = {
+    "Common": "⚪",
+    "Uncommon": "🟢",
+    "Rare": "🔵",
+    "Epic": "🟣",
+    "Legendary": "🟠",
+    "Mythic": "🔴",
+}
+
+MONSTER_DROPS: Dict[str, List[Tuple[str, int]]] = {
+    "Slime": [("gel", 80), ("potion", 30), ("wood_sword", 5)],
+    "Goblin": [("iron", 40), ("antidote", 20), ("iron_sword", 5)],
+    "Wolf": [("potion", 35), ("wood", 60), ("ring_of_luck", 3)],
+    "Orc": [("iron_armor", 8), ("elixir", 25), ("crystal", 15)],
+    "Mini Dragon": [("flame_sword", 8), ("dungeon_key", 20), ("crystal", 35)],
 }
 
 
@@ -130,6 +154,7 @@ class RPGRepository:
             "base_defense": "INTEGER NOT NULL DEFAULT 5",
             "equipped_weapon": "TEXT NOT NULL DEFAULT 'None'",
             "equipped_armor": "TEXT NOT NULL DEFAULT 'None'",
+            "equipped_accessory": "TEXT NOT NULL DEFAULT 'None'",
         }
         for col, definition in required_columns.items():
             if col not in existing_cols:
@@ -312,22 +337,36 @@ def get_equipment_bonus(item_key: str, slot: str) -> Dict[str, int]:
         "def": int(item.get("def", 0)),
         "hp": int(item.get("hp", 0)),
         "crit": int(item.get("crit", 0)),
+        "drop_rate": int(item.get("drop_rate", 0)),
+        "dodge": int(item.get("dodge", 0)),
     }
 
 
 def compute_total_stats(player: sqlite3.Row) -> Dict[str, int]:
     weapon_bonus = get_equipment_bonus(player["equipped_weapon"], "weapon")
     armor_bonus = get_equipment_bonus(player["equipped_armor"], "armor")
+    accessory_bonus = get_equipment_bonus(player["equipped_accessory"], "accessory")
     pet_bonus = PET_BONUS.get(player["pet"], {"atk": 0, "def": 0, "hp": 0})
-    total_hp = int(player["base_hp"]) + weapon_bonus["hp"] + armor_bonus["hp"] + int(pet_bonus["hp"])
-    total_atk = int(player["base_attack"]) + weapon_bonus["atk"] + armor_bonus["atk"] + int(pet_bonus["atk"])
-    total_def = int(player["base_defense"]) + weapon_bonus["def"] + armor_bonus["def"] + int(pet_bonus["def"])
+    total_hp = int(player["base_hp"]) + weapon_bonus["hp"] + armor_bonus["hp"] + accessory_bonus["hp"] + int(pet_bonus["hp"])
+    total_atk = int(player["base_attack"]) + weapon_bonus["atk"] + armor_bonus["atk"] + accessory_bonus["atk"] + int(pet_bonus["atk"])
+    total_def = int(player["base_defense"]) + weapon_bonus["def"] + armor_bonus["def"] + accessory_bonus["def"] + int(pet_bonus["def"])
     return {
         "hp": total_hp,
         "atk": total_atk,
         "def": total_def,
-        "crit": weapon_bonus["crit"],
+        "crit": weapon_bonus["crit"] + accessory_bonus["crit"],
+        "drop_rate": accessory_bonus["drop_rate"],
+        "dodge": accessory_bonus["dodge"],
     }
+
+
+def roll_drops(monster_name: str, extra_drop_rate: int = 0) -> List[str]:
+    drops: List[str] = []
+    for item_name, base_chance in MONSTER_DROPS.get(monster_name, []):
+        chance = min(100, base_chance + extra_drop_rate)
+        if random.randint(1, 100) <= chance:
+            drops.append(item_name)
+    return drops
 
 
 def parse_user_id(raw: str) -> Optional[int]:
@@ -379,7 +418,7 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         f"🎒 Inventory: {inventory_count} items\n"
         f"🐾 Pet      : {p['pet']}\n\n"
         f"🏆 Rank     : #{rank if rank else '-'}\n"
-        "╚══════════════════════════════════╝"
+        "╚════════════════════════════════╝"
     )
 
 
@@ -405,12 +444,17 @@ async def cmd_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         lines = ["🛒 Shop list:"]
         for name, meta in SHOP_ITEMS.items():
             if meta["type"] == "consumable":
-                effect = f"heal +{meta['heal']}"
+                effect = f"heal +{meta.get('heal', 0)} | exp +{meta.get('exp', 0)}"
             elif meta["type"] == "weapon":
                 effect = f"ATK +{meta['atk']} | Crit +{meta.get('crit', 0)}%"
-            else:
+            elif meta["type"] == "armor":
                 effect = f"HP +{meta.get('hp', 0)} | DEF +{meta.get('def', 0)}"
-            lines.append(f"- {name}: {meta['price']} gold ({effect})")
+            elif meta["type"] == "accessory":
+                effect = f"ATK +{meta.get('atk', 0)} | DEF +{meta.get('def', 0)} | Drop +{meta.get('drop_rate', 0)}%"
+            else:
+                effect = f"Kategori: {meta['type']}"
+            rarity = str(meta.get("rarity", "Common"))
+            lines.append(f"- {name}: {meta['price']} gold ({effect}) {RARITY_ICON.get(rarity, '⚪')} {rarity}")
         lines.append("\nBeli: /shop buy <item> <qty>")
         lines.append("Equip: /item equip <item_key>")
         await update.message.reply_text("\n".join(lines))
@@ -471,10 +515,14 @@ async def cmd_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_text("Item ini bukan consumable. Gunakan /item equip <item_key>.")
             return
         total = compute_total_stats(player)
-        new_hp = min(total["hp"], player["hp"] + int(meta["heal"]))
-        repo.update_stats(user.id, hp=new_hp)
+        heal = int(meta.get("heal", 0))
+        bonus_exp = int(meta.get("exp", 0))
+        new_hp = min(total["hp"], player["hp"] + heal)
+        repo.update_stats(user.id, hp=new_hp, exp_delta=bonus_exp)
         repo.upsert_inventory(user.id, item, -1)
-        await update.message.reply_text(f"Kamu menggunakan {item}. HP dipulihkan menjadi {new_hp}/{total['hp']}.")
+        await update.message.reply_text(
+            f"Kamu menggunakan {item}. HP {new_hp}/{total['hp']}, EXP +{bonus_exp}."
+        )
         return
 
     if meta["type"] == "weapon":
@@ -485,11 +533,15 @@ async def cmd_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         with repo._connect() as conn:
             conn.execute("UPDATE players SET equipped_armor = ? WHERE user_id = ?", (item, user.id))
         await update.message.reply_text(f"✅ Armor {meta['name']} berhasil di-equip.")
+    elif meta["type"] == "accessory":
+        with repo._connect() as conn:
+            conn.execute("UPDATE players SET equipped_accessory = ? WHERE user_id = ?", (item, user.id))
+        await update.message.reply_text(f"✅ Accessory {meta['name']} berhasil di-equip.")
     else:
         await update.message.reply_text("Item ini tidak bisa di-equip.")
 
 
-def do_battle(player_hp: int, player_attack: int, player_defense: int, crit_chance: int, monster: Monster) -> Tuple[bool, int, List[str], int]:
+def do_battle(player_hp: int, player_attack: int, player_defense: int, crit_chance: int, dodge_chance: int, monster: Monster) -> Tuple[bool, int, List[str], int]:
     logs: List[str] = [f"⚔️ Kamu bertemu {monster.name}!"]
     m_hp = monster.hp
     p_hp = player_hp
@@ -504,6 +556,9 @@ def do_battle(player_hp: int, player_attack: int, player_defense: int, crit_chan
         if m_hp <= 0:
             break
 
+        if dodge_chance > 0 and random.randint(1, 100) <= dodge_chance:
+            logs.append("💨 Kamu berhasil dodge serangan monster!")
+            continue
         raw_m_dmg = random.randint(monster.attack_min, monster.attack_max)
         m_dmg = max(1, raw_m_dmg - player_defense)
         p_hp -= m_dmg
@@ -528,7 +583,7 @@ async def cmd_hunt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     monster = random.choice(MONSTERS)
-    win, hp_left, logs, _ = do_battle(player["hp"], total["atk"], total["def"], total["crit"], monster)
+    win, hp_left, logs, _ = do_battle(player["hp"], total["atk"], total["def"], total["crit"], total["dodge"], monster)
 
     if win:
         repo.update_stats(
@@ -539,9 +594,10 @@ async def cmd_hunt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             set_last_hunt=now,
         )
         logs.append(f"✅ Menang! +{monster.exp_drop} EXP, +{monster.gold_drop} Gold")
-        if random.random() < 0.4:
-            repo.upsert_inventory(user.id, "potion", 1)
-            logs.append("🎁 Drop item: potion x1")
+        dropped_items = roll_drops(monster.name, extra_drop_rate=total["drop_rate"])
+        for item_name in dropped_items:
+            repo.upsert_inventory(user.id, item_name, 1)
+            logs.append(f"🎁 Drop item: {item_name} x1")
     else:
         penalty = min(player["gold"], 15)
         repo.update_stats(user.id, hp=1, gold_delta=-penalty, set_last_hunt=now)
@@ -556,7 +612,7 @@ async def cmd_battle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     player = repo.get_player(user.id)
     total = compute_total_stats(player)
     monster = random.choice(MONSTERS)
-    win, hp_left, logs, _ = do_battle(player["hp"], total["atk"], total["def"], total["crit"], monster)
+    win, hp_left, logs, _ = do_battle(player["hp"], total["atk"], total["def"], total["crit"], total["dodge"], monster)
     if win:
         reward_gold = monster.gold_drop // 2
         reward_exp = monster.exp_drop // 2

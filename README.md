@@ -59,6 +59,23 @@ Contoh damage saat battle:
 - Damage player ke monster = ATK total player (dengan peluang critical dari weapon).
 - Damage monster ke player = `max(1, serangan monster - DEF total player)`.
 
+## Jenis item
+- **Consumable**: potion (heal), elixir (bonus EXP), antidote.
+- **Equipment**: weapon, armor, accessory (bonus stat otomatis saat di-equip).
+- **Material**: wood, iron, crystal (untuk progres/crafting lanjutan).
+- **Special**: dungeon key / item event.
+
+## Rarity system
+- Common ⚪
+- Uncommon 🟢
+- Rare 🔵
+- Epic 🟣
+- Legendary 🟠
+- Mythic 🔴
+
+## Sistem drop RNG
+Setiap monster punya tabel drop sendiri (contoh Slime: gel/potion/wood_sword) dengan peluang berbeda. Bonus drop rate dari accessory akan menambah peluang drop.
+
 ## Cara jalankan
 1. Install dependency:
    ```bash
