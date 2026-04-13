@@ -23,7 +23,6 @@ Bot Telegram RPG sederhana dengan komponen:
 ╔═══════════〔 PROFILE 〕═══════════╗
 👤 Nama     : Username
 🎖️ Level    : 12 (EXP: 120/200)
-📊 EXP Bar  : ▰▰▰▰▰▱▱▱▱▱
 🌍 Area     : Volcano
 ❤️ HP       : 180 / 200
 ⚔️ ATK      : 35
@@ -41,6 +40,24 @@ Bot Telegram RPG sederhana dengan komponen:
 🏆 Rank     : #15
 ╚══════════════════════════════════╝
 ```
+
+## Sistem stat (simple)
+- Base stat dari player:
+  - HP: 100
+  - ATK: 10
+  - DEF: 5
+- Equipment memberi bonus otomatis:
+  - `wood_sword` → +5 ATK
+  - `iron_armor` → +20 HP, +8 DEF
+  - `flame_sword` → +12 ATK, +10% critical chance
+- Pet juga memberi bonus (contoh `Fire Wolf` +5 ATK).
+
+Formula total:
+`TOTAL = BASE + EQUIPMENT + BONUS PET`
+
+Contoh damage saat battle:
+- Damage player ke monster = ATK total player (dengan peluang critical dari weapon).
+- Damage monster ke player = `max(1, serangan monster - DEF total player)`.
 
 ## Cara jalankan
 1. Install dependency:

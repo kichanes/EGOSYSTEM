@@ -45,11 +45,18 @@ MONSTERS: List[Monster] = [
     Monster("Mini Dragon", 65, 8, 17, 60, 72),
 ]
 
-SHOP_ITEMS: Dict[str, Dict[str, int]] = {
-    "potion": {"price": 25, "heal": 30},
-    "hi_potion": {"price": 80, "heal": 80},
-    "sword": {"price": 120, "attack": 3},
-    "greatsword": {"price": 220, "attack": 6},
+SHOP_ITEMS: Dict[str, Dict[str, object]] = {
+    "potion": {"price": 25, "type": "consumable", "heal": 30},
+    "hi_potion": {"price": 80, "type": "consumable", "heal": 80},
+    "wood_sword": {"price": 90, "type": "weapon", "name": "Wood Sword", "atk": 5, "crit": 0},
+    "iron_sword": {"price": 180, "type": "weapon", "name": "Iron Sword", "atk": 10, "crit": 0},
+    "flame_sword": {"price": 350, "type": "weapon", "name": "Flame Sword", "atk": 12, "crit": 10},
+    "iron_armor": {"price": 220, "type": "armor", "name": "Iron Armor", "hp": 20, "def": 8},
+}
+
+PET_BONUS: Dict[str, Dict[str, int]] = {
+    "None": {"atk": 0, "def": 0, "hp": 0},
+    "Fire Wolf": {"atk": 5, "def": 0, "hp": 0},
 }
 
 
@@ -118,6 +125,11 @@ class RPGRepository:
             "weapon": "TEXT NOT NULL DEFAULT 'Wooden Sword'",
             "armor": "TEXT NOT NULL DEFAULT 'Leather Armor'",
             "pet": "TEXT NOT NULL DEFAULT 'None'",
+            "base_hp": "INTEGER NOT NULL DEFAULT 100",
+            "base_attack": "INTEGER NOT NULL DEFAULT 10",
+            "base_defense": "INTEGER NOT NULL DEFAULT 5",
+            "equipped_weapon": "TEXT NOT NULL DEFAULT 'None'",
+            "equipped_armor": "TEXT NOT NULL DEFAULT 'None'",
         }
         for col, definition in required_columns.items():
             if col not in existing_cols:
@@ -170,7 +182,7 @@ class RPGRepository:
     ) -> None:
         with self._connect() as conn:
             player = conn.execute(
-                "SELECT level, exp, hp, max_hp, attack, gold FROM players WHERE user_id = ?",
+                "SELECT level, exp, hp, max_hp, attack, gold, base_hp FROM players WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
             if not player:
@@ -179,10 +191,12 @@ class RPGRepository:
             new_exp = player["exp"] + exp_delta
             new_level = player["level"]
             new_max_hp = player["max_hp"]
+            new_base_hp = player["base_hp"]
             while new_exp >= new_level * 100:
                 new_exp -= new_level * 100
                 new_level += 1
                 new_max_hp += 10
+                new_base_hp += 10
 
             final_hp = player["hp"] if hp is None else max(0, min(hp, new_max_hp))
             final_attack = max(1, player["attack"] + attack_delta)
@@ -197,10 +211,10 @@ class RPGRepository:
             conn.execute(
                 """
                 UPDATE players
-                SET level = ?, exp = ?, hp = ?, max_hp = ?, attack = ?, gold = ?, last_hunt_ts = ?
+                SET level = ?, exp = ?, hp = ?, max_hp = ?, base_hp = ?, attack = ?, gold = ?, last_hunt_ts = ?
                 WHERE user_id = ?
                 """,
-                (new_level, new_exp, final_hp, new_max_hp, final_attack, final_gold, last_hunt_ts, user_id),
+                (new_level, new_exp, final_hp, new_max_hp, new_base_hp, final_attack, final_gold, last_hunt_ts, user_id),
             )
 
     def set_guild(self, user_id: int, guild_id: int) -> None:
@@ -279,20 +293,41 @@ class RPGRepository:
 repo = RPGRepository(DB_PATH)
 
 
-def build_exp_bar(current: int, target: int, width: int = 10) -> str:
-    if target <= 0:
-        return "▱" * width
-    ratio = max(0.0, min(1.0, current / target))
-    filled = int(round(ratio * width))
-    return "▰" * filled + "▱" * (width - filled)
-
-
 def get_player_rank(user_id: int) -> Optional[int]:
     board = repo.get_leaderboard(limit=10000)
     for idx, row in enumerate(board, start=1):
         if row["user_id"] == user_id:
             return idx
     return None
+
+
+def get_equipment_bonus(item_key: str, slot: str) -> Dict[str, int]:
+    if item_key == "None":
+        return {"atk": 0, "def": 0, "hp": 0, "crit": 0}
+    item = SHOP_ITEMS.get(item_key, {})
+    if not item or item.get("type") != slot:
+        return {"atk": 0, "def": 0, "hp": 0, "crit": 0}
+    return {
+        "atk": int(item.get("atk", 0)),
+        "def": int(item.get("def", 0)),
+        "hp": int(item.get("hp", 0)),
+        "crit": int(item.get("crit", 0)),
+    }
+
+
+def compute_total_stats(player: sqlite3.Row) -> Dict[str, int]:
+    weapon_bonus = get_equipment_bonus(player["equipped_weapon"], "weapon")
+    armor_bonus = get_equipment_bonus(player["equipped_armor"], "armor")
+    pet_bonus = PET_BONUS.get(player["pet"], {"atk": 0, "def": 0, "hp": 0})
+    total_hp = int(player["base_hp"]) + weapon_bonus["hp"] + armor_bonus["hp"] + int(pet_bonus["hp"])
+    total_atk = int(player["base_attack"]) + weapon_bonus["atk"] + armor_bonus["atk"] + int(pet_bonus["atk"])
+    total_def = int(player["base_defense"]) + weapon_bonus["def"] + armor_bonus["def"] + int(pet_bonus["def"])
+    return {
+        "hp": total_hp,
+        "atk": total_atk,
+        "def": total_def,
+        "crit": weapon_bonus["crit"],
+    }
 
 
 def parse_user_id(raw: str) -> Optional[int]:
@@ -321,21 +356,26 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     p = repo.get_player(user.id)
     rank = get_player_rank(user.id)
     exp_target = p["level"] * 100
-    exp_bar = build_exp_bar(p["exp"], exp_target)
+    total = compute_total_stats(p)
+    equipped_weapon_name = "None"
+    equipped_armor_name = "None"
+    if p["equipped_weapon"] != "None":
+        equipped_weapon_name = str(SHOP_ITEMS[p["equipped_weapon"]]["name"])
+    if p["equipped_armor"] != "None":
+        equipped_armor_name = str(SHOP_ITEMS[p["equipped_armor"]]["name"])
     inventory_count = sum(row["quantity"] for row in repo.get_inventory(user.id))
     await update.message.reply_text(
         "╔═══════════〔 PROFILE 〕═══════════╗\n"
         f"👤 Nama     : {p['username']}\n"
         f"🎖️ Level    : {p['level']} (EXP: {p['exp']}/{exp_target})\n"
-        f"📊 EXP Bar  : {exp_bar}\n"
         f"🌍 Area     : {p['area']}\n"
-        f"❤️ HP       : {p['hp']} / {p['max_hp']}\n"
-        f"⚔️ ATK      : {p['attack']}\n"
-        f"🛡️ DEF      : {p['defense']}\n\n"
+        f"❤️ HP       : {p['hp']} / {total['hp']}\n"
+        f"⚔️ ATK      : {total['atk']}\n"
+        f"🛡️ DEF      : {total['def']}\n\n"
         f"💰 Gold     : {p['gold']:,}\n"
         f"💎 Gems     : {p['gems']:,}\n\n"
-        f"🗡️ Weapon   : {p['weapon']}\n"
-        f"🛡️ Armor    : {p['armor']}\n\n"
+        f"🗡️ Weapon   : {equipped_weapon_name}\n"
+        f"🛡️ Armor    : {equipped_armor_name}\n\n"
         f"🎒 Inventory: {inventory_count} items\n"
         f"🐾 Pet      : {p['pet']}\n\n"
         f"🏆 Rank     : #{rank if rank else '-'}\n"
@@ -364,9 +404,15 @@ async def cmd_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not args:
         lines = ["🛒 Shop list:"]
         for name, meta in SHOP_ITEMS.items():
-            effect = f"heal +{meta['heal']}" if "heal" in meta else f"attack +{meta['attack']}"
+            if meta["type"] == "consumable":
+                effect = f"heal +{meta['heal']}"
+            elif meta["type"] == "weapon":
+                effect = f"ATK +{meta['atk']} | Crit +{meta.get('crit', 0)}%"
+            else:
+                effect = f"HP +{meta.get('hp', 0)} | DEF +{meta.get('def', 0)}"
             lines.append(f"- {name}: {meta['price']} gold ({effect})")
         lines.append("\nBeli: /shop buy <item> <qty>")
+        lines.append("Equip: /item equip <item_key>")
         await update.message.reply_text("\n".join(lines))
         return
 
@@ -384,7 +430,7 @@ async def cmd_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     player = repo.get_player(user.id)
-    total = SHOP_ITEMS[item]["price"] * qty
+    total = int(SHOP_ITEMS[item]["price"]) * qty
     if player["gold"] < total:
         await update.message.reply_text("Gold tidak cukup.")
         return
@@ -399,13 +445,14 @@ async def cmd_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     repo.ensure_player(user.id, user.username)
 
     if len(context.args) < 1:
-        await update.message.reply_text("Format: /item use <nama_item>")
+        await update.message.reply_text("Format: /item use <nama_item> | /item equip <item_key>")
         return
 
-    if context.args[0] != "use" or len(context.args) < 2:
-        await update.message.reply_text("Format: /item use <nama_item>")
+    if context.args[0] not in {"use", "equip"} or len(context.args) < 2:
+        await update.message.reply_text("Format: /item use <nama_item> | /item equip <item_key>")
         return
 
+    action = context.args[0]
     item = context.args[1].lower()
     inv = {row["item_name"]: row["quantity"] for row in repo.get_inventory(user.id)}
     if inv.get(item, 0) <= 0:
@@ -416,34 +463,54 @@ async def cmd_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Item belum punya efek.")
         return
 
+    meta = SHOP_ITEMS[item]
     player = repo.get_player(user.id)
-    if "heal" in SHOP_ITEMS[item]:
-        new_hp = min(player["max_hp"], player["hp"] + SHOP_ITEMS[item]["heal"])
+
+    if action == "use":
+        if meta["type"] != "consumable":
+            await update.message.reply_text("Item ini bukan consumable. Gunakan /item equip <item_key>.")
+            return
+        total = compute_total_stats(player)
+        new_hp = min(total["hp"], player["hp"] + int(meta["heal"]))
         repo.update_stats(user.id, hp=new_hp)
-        msg = f"HP dipulihkan menjadi {new_hp}/{player['max_hp']}."
+        repo.upsert_inventory(user.id, item, -1)
+        await update.message.reply_text(f"Kamu menggunakan {item}. HP dipulihkan menjadi {new_hp}/{total['hp']}.")
+        return
+
+    if meta["type"] == "weapon":
+        with repo._connect() as conn:
+            conn.execute("UPDATE players SET equipped_weapon = ? WHERE user_id = ?", (item, user.id))
+        await update.message.reply_text(f"✅ Weapon {meta['name']} berhasil di-equip.")
+    elif meta["type"] == "armor":
+        with repo._connect() as conn:
+            conn.execute("UPDATE players SET equipped_armor = ? WHERE user_id = ?", (item, user.id))
+        await update.message.reply_text(f"✅ Armor {meta['name']} berhasil di-equip.")
     else:
-        repo.update_stats(user.id, attack_delta=SHOP_ITEMS[item]["attack"])
-        msg = f"Attack naik +{SHOP_ITEMS[item]['attack']} permanen."
-
-    repo.upsert_inventory(user.id, item, -1)
-    await update.message.reply_text(f"Kamu menggunakan {item}. {msg}")
+        await update.message.reply_text("Item ini tidak bisa di-equip.")
 
 
-def do_battle(player_hp: int, player_attack: int, monster: Monster) -> Tuple[bool, int, List[str], int]:
+def do_battle(player_hp: int, player_attack: int, player_defense: int, crit_chance: int, monster: Monster) -> Tuple[bool, int, List[str], int]:
     logs: List[str] = [f"⚔️ Kamu bertemu {monster.name}!"]
     m_hp = monster.hp
     p_hp = player_hp
 
     while p_hp > 0 and m_hp > 0:
         dmg = random.randint(max(1, player_attack - 3), player_attack + 3)
+        if crit_chance > 0 and random.randint(1, 100) <= crit_chance:
+            dmg *= 2
+            logs.append("🔥 Critical Hit!")
         m_hp -= dmg
         logs.append(f"Kamu menyerang {monster.name} {dmg} damage (HP monster {max(0, m_hp)}).")
         if m_hp <= 0:
             break
 
-        m_dmg = random.randint(monster.attack_min, monster.attack_max)
+        raw_m_dmg = random.randint(monster.attack_min, monster.attack_max)
+        m_dmg = max(1, raw_m_dmg - player_defense)
         p_hp -= m_dmg
-        logs.append(f"{monster.name} menyerang balik {m_dmg} damage (HP kamu {max(0, p_hp)}).")
+        logs.append(
+            f"{monster.name} menyerang balik {m_dmg} damage "
+            f"(raw {raw_m_dmg} - DEF {player_defense}, HP kamu {max(0, p_hp)})."
+        )
 
     win = m_hp <= 0
     return win, max(0, p_hp), logs, monster.hp - max(0, m_hp)
@@ -453,6 +520,7 @@ async def cmd_hunt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     repo.ensure_player(user.id, user.username)
     player = repo.get_player(user.id)
+    total = compute_total_stats(player)
     now = int(time.time())
     remaining = HUNT_COOLDOWN_SECONDS - (now - player["last_hunt_ts"])
     if remaining > 0:
@@ -460,7 +528,7 @@ async def cmd_hunt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     monster = random.choice(MONSTERS)
-    win, hp_left, logs, _ = do_battle(player["hp"], player["attack"], monster)
+    win, hp_left, logs, _ = do_battle(player["hp"], total["atk"], total["def"], total["crit"], monster)
 
     if win:
         repo.update_stats(
@@ -486,8 +554,9 @@ async def cmd_battle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     user = update.effective_user
     repo.ensure_player(user.id, user.username)
     player = repo.get_player(user.id)
+    total = compute_total_stats(player)
     monster = random.choice(MONSTERS)
-    win, hp_left, logs, _ = do_battle(player["hp"], player["attack"], monster)
+    win, hp_left, logs, _ = do_battle(player["hp"], total["atk"], total["def"], total["crit"], monster)
     if win:
         reward_gold = monster.gold_drop // 2
         reward_exp = monster.exp_drop // 2
