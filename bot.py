@@ -56,15 +56,28 @@ MONSTERS: List[Monster] = [
 ]
 
 SHOP_ITEMS: Dict[str, Dict[str, object]] = {
-    "potion": {"price": 25, "type": "consumable", "name": "Potion", "heal": 30, "rarity": "Common"},
-    "elixir": {"price": 70, "type": "consumable", "name": "Elixir", "exp": 40, "rarity": "Uncommon"},
+    "small_potion": {"price": 25, "type": "consumable", "name": "Small Potion", "heal": 30, "rarity": "Common"},
+    "medium_potion": {"price": 60, "type": "consumable", "name": "Medium Potion", "heal": 70, "rarity": "Uncommon"},
+    "elixir": {"price": 80, "type": "consumable", "name": "Elixir", "exp": 50, "rarity": "Rare"},
     "antidote": {"price": 45, "type": "consumable", "name": "Antidote", "cure": "poison", "rarity": "Common"},
-    "wood_sword": {"price": 90, "type": "weapon", "name": "Wood Sword", "atk": 5, "crit": 0, "rarity": "Common"},
-    "iron_sword": {"price": 180, "type": "weapon", "name": "Iron Sword", "atk": 10, "crit": 0, "rarity": "Rare"},
-    "flame_sword": {"price": 350, "type": "weapon", "name": "Flame Sword", "atk": 12, "crit": 10, "rarity": "Epic"},
-    "iron_armor": {"price": 220, "type": "armor", "name": "Iron Armor", "hp": 20, "def": 8, "rarity": "Rare"},
+    "wood_sword": {"price": 90, "type": "weapon", "name": "Wood Sword", "atk": 5, "rarity": "Common"},
+    "iron_sword": {"price": 150, "type": "weapon", "name": "Iron Sword", "atk": 10, "rarity": "Uncommon"},
+    "knight_blade": {"price": 260, "type": "weapon", "name": "Knight Blade", "atk": 15, "def": 3, "rarity": "Rare"},
+    "flame_sword": {"price": 420, "type": "weapon", "name": "Flame Sword", "atk": 20, "crit": 10, "burn": 5, "rarity": "Epic"},
+    "demon_slayer": {"price": 760, "type": "weapon", "name": "Demon Slayer", "atk": 30, "crit": 15, "lifesteal": 5, "rarity": "Legendary"},
+    "void_blade": {"price": 1200, "type": "weapon", "name": "Void Blade", "atk": 40, "crit": 20, "rarity": "Mythic"},
+    "cloth_armor": {"price": 90, "type": "armor", "name": "Cloth Armor", "hp": 10, "rarity": "Common"},
+    "iron_armor": {"price": 220, "type": "armor", "name": "Iron Armor", "hp": 20, "def": 8, "rarity": "Uncommon"},
+    "knight_armor": {"price": 420, "type": "armor", "name": "Knight Armor", "hp": 40, "def": 15, "rarity": "Rare"},
+    "lava_armor": {"price": 560, "type": "armor", "name": "Lava Armor", "hp": 50, "def": 20, "rarity": "Epic"},
+    "dragon_armor": {"price": 980, "type": "armor", "name": "Dragon Armor", "hp": 80, "def": 30, "dmg_reduction": 10, "rarity": "Legendary"},
+    "void_armor": {"price": 1400, "type": "armor", "name": "Void Armor", "hp": 100, "def": 40, "lifesteal": 5, "rarity": "Mythic"},
     "ring_of_luck": {"price": 300, "type": "accessory", "name": "Ring of Luck", "drop_rate": 5, "rarity": "Epic"},
+    "gold_amulet": {"price": 240, "type": "accessory", "name": "Gold Amulet", "gold_gain": 10, "rarity": "Rare"},
     "amulet_of_power": {"price": 320, "type": "accessory", "name": "Amulet of Power", "atk": 5, "def": 5, "rarity": "Epic"},
+    "critical_ring": {"price": 420, "type": "accessory", "name": "Critical Ring", "crit": 10, "rarity": "Epic"},
+    "time_pendant": {"price": 520, "type": "accessory", "name": "Time Pendant", "dodge": 10, "rarity": "Legendary"},
+    "vampire_ring": {"price": 760, "type": "accessory", "name": "Vampire Ring", "lifesteal": 5, "rarity": "Legendary"},
     "wood": {"price": 10, "type": "material", "name": "Wood", "rarity": "Common"},
     "iron": {"price": 20, "type": "material", "name": "Iron", "rarity": "Uncommon"},
     "crystal": {"price": 45, "type": "material", "name": "Crystal", "rarity": "Rare"},
@@ -86,9 +99,9 @@ RARITY_ICON = {
 }
 
 MONSTER_DROPS: Dict[str, List[Tuple[str, int]]] = {
-    "Slime": [("gel", 80), ("potion", 30), ("wood_sword", 5)],
+    "Slime": [("gel", 80), ("small_potion", 30), ("wood_sword", 5)],
     "Goblin": [("iron", 40), ("antidote", 20), ("iron_sword", 5)],
-    "Wolf": [("potion", 35), ("wood", 60), ("ring_of_luck", 3)],
+    "Wolf": [("small_potion", 35), ("wood", 60), ("ring_of_luck", 3)],
     "Orc": [("iron_armor", 8), ("elixir", 25), ("crystal", 15)],
     "Mini Dragon": [("flame_sword", 8), ("dungeon_key", 20), ("crystal", 35)],
 }
@@ -354,7 +367,18 @@ def get_player_rank(user_id: int) -> Optional[int]:
 
 
 def get_equipment_bonus(item_key: str, slot: str) -> Dict[str, int]:
-    empty = {"atk": 0, "def": 0, "hp": 0, "crit": 0, "drop_rate": 0, "dodge": 0}
+    empty = {
+        "atk": 0,
+        "def": 0,
+        "hp": 0,
+        "crit": 0,
+        "drop_rate": 0,
+        "dodge": 0,
+        "lifesteal": 0,
+        "dmg_reduction": 0,
+        "gold_gain": 0,
+        "burn": 0,
+    }
     if item_key == "None":
         return empty
     item = SHOP_ITEMS.get(item_key, {})
@@ -367,6 +391,10 @@ def get_equipment_bonus(item_key: str, slot: str) -> Dict[str, int]:
         "crit": int(item.get("crit", 0)),
         "drop_rate": int(item.get("drop_rate", 0)),
         "dodge": int(item.get("dodge", 0)),
+        "lifesteal": int(item.get("lifesteal", 0)),
+        "dmg_reduction": int(item.get("dmg_reduction", 0)),
+        "gold_gain": int(item.get("gold_gain", 0)),
+        "burn": int(item.get("burn", 0)),
     }
 
 
@@ -385,6 +413,10 @@ def compute_total_stats(player: sqlite3.Row) -> Dict[str, int]:
         "crit": weapon_bonus["crit"] + accessory_bonus["crit"],
         "drop_rate": accessory_bonus["drop_rate"],
         "dodge": accessory_bonus["dodge"],
+        "lifesteal": weapon_bonus["lifesteal"] + armor_bonus["lifesteal"] + accessory_bonus["lifesteal"],
+        "dmg_reduction": armor_bonus["dmg_reduction"],
+        "gold_gain": accessory_bonus["gold_gain"],
+        "burn": weapon_bonus["burn"],
     }
 
 
@@ -608,10 +640,13 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     total = compute_total_stats(p)
     equipped_weapon_name = "None"
     equipped_armor_name = "None"
+    equipped_accessory_name = "None"
     if p["equipped_weapon"] != "None":
         equipped_weapon_name = str(SHOP_ITEMS[p["equipped_weapon"]]["name"])
     if p["equipped_armor"] != "None":
         equipped_armor_name = str(SHOP_ITEMS[p["equipped_armor"]]["name"])
+    if p["equipped_accessory"] != "None":
+        equipped_accessory_name = str(SHOP_ITEMS[p["equipped_accessory"]]["name"])
     inventory_count = sum(row["quantity"] for row in repo.get_inventory(user.id))
     await update.effective_message.reply_text(
         "╔═══════════〔 PROFILE 〕═══════════╗\n"
@@ -624,10 +659,12 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         f"💰 Gold     : {p['gold']:,}\n"
         f"💎 Gems     : {p['gems']:,}\n\n"
         f"🗡️ Weapon   : {equipped_weapon_name}\n"
-        f"🛡️ Armor    : {equipped_armor_name}\n\n"
+        f"🛡️ Armor    : {equipped_armor_name}\n"
+        f"💍 Accessory: {equipped_accessory_name}\n\n"
         f"🎒 Inventory: {inventory_count} items\n"
         f"🐾 Pet      : {p['pet']}\n\n"
         f"🏆 Rank     : #{rank if rank else '-'}\n"
+        f"✨ Crit      : {total['crit']}%\n"
         "╚════════════════════════════════╝"
     )
 
@@ -656,11 +693,21 @@ async def cmd_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             if meta["type"] == "consumable":
                 effect = f"heal +{meta.get('heal', 0)} | exp +{meta.get('exp', 0)}"
             elif meta["type"] == "weapon":
-                effect = f"ATK +{meta['atk']} | Crit +{meta.get('crit', 0)}%"
+                effect = (
+                    f"ATK +{meta.get('atk', 0)} | Crit +{meta.get('crit', 0)}% | "
+                    f"Lifesteal +{meta.get('lifesteal', 0)}% | Burn {meta.get('burn', 0)}"
+                )
             elif meta["type"] == "armor":
-                effect = f"HP +{meta.get('hp', 0)} | DEF +{meta.get('def', 0)}"
+                effect = (
+                    f"HP +{meta.get('hp', 0)} | DEF +{meta.get('def', 0)} | "
+                    f"DR +{meta.get('dmg_reduction', 0)}% | Lifesteal +{meta.get('lifesteal', 0)}%"
+                )
             elif meta["type"] == "accessory":
-                effect = f"ATK +{meta.get('atk', 0)} | DEF +{meta.get('def', 0)} | Drop +{meta.get('drop_rate', 0)}%"
+                effect = (
+                    f"ATK +{meta.get('atk', 0)} | DEF +{meta.get('def', 0)} | Crit +{meta.get('crit', 0)}% | "
+                    f"Drop +{meta.get('drop_rate', 0)}% | Gold +{meta.get('gold_gain', 0)}% | "
+                    f"Dodge +{meta.get('dodge', 0)}% | Lifesteal +{meta.get('lifesteal', 0)}%"
+                )
             else:
                 effect = f"Kategori: {meta['type']}"
             rarity = str(meta.get("rarity", "Common"))
@@ -675,6 +722,7 @@ async def cmd_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     item = args[1].lower()
+    item = {"potion": "small_potion"}.get(item, item)
     qty = int(args[2]) if len(args) > 2 and args[2].isdigit() else 1
     if item not in SHOP_ITEMS:
         await update.effective_message.reply_text("Item tidak tersedia.")
@@ -708,6 +756,8 @@ async def cmd_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     action = context.args[0]
     item = context.args[1].lower()
+    alias_map = {"potion": "small_potion"}
+    item = alias_map.get(item, item)
     inv = {row["item_name"]: row["quantity"] for row in repo.get_inventory(user.id)}
     if inv.get(item, 0) <= 0:
         await update.effective_message.reply_text("Item tidak ada di inventory.")
@@ -794,7 +844,17 @@ async def cmd_travel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await cmd_area(update, context)
 
 
-def do_battle(player_hp: int, player_attack: int, player_defense: int, crit_chance: int, dodge_chance: int, monster: Monster) -> Tuple[bool, int, List[str], int]:
+def do_battle(
+    player_hp: int,
+    player_attack: int,
+    player_defense: int,
+    crit_chance: int,
+    dodge_chance: int,
+    lifesteal: int,
+    dmg_reduction: int,
+    burn_damage: int,
+    monster: Monster,
+) -> Tuple[bool, int, List[str], int]:
     logs: List[str] = [f"⚔️ Kamu bertemu {monster.name}!"]
     m_hp = monster.hp
     p_hp = player_hp
@@ -805,6 +865,13 @@ def do_battle(player_hp: int, player_attack: int, player_defense: int, crit_chan
             dmg *= 2
             logs.append("🔥 Critical Hit!")
         m_hp -= dmg
+        if burn_damage > 0:
+            m_hp -= burn_damage
+            logs.append(f"🔥 Burn efek {burn_damage} damage.")
+        if lifesteal > 0:
+            heal = max(1, int(dmg * (lifesteal / 100)))
+            p_hp += heal
+            logs.append(f"🩸 Lifesteal +{heal} HP.")
         logs.append(f"Kamu menyerang {monster.name} {dmg} damage (HP monster {max(0, m_hp)}).")
         if m_hp <= 0:
             break
@@ -813,7 +880,8 @@ def do_battle(player_hp: int, player_attack: int, player_defense: int, crit_chan
             logs.append("💨 Kamu berhasil dodge serangan monster!")
             continue
         raw_m_dmg = random.randint(monster.attack_min, monster.attack_max)
-        m_dmg = max(1, raw_m_dmg - player_defense)
+        reduced = int(raw_m_dmg * (dmg_reduction / 100))
+        m_dmg = max(1, raw_m_dmg - player_defense - reduced)
         p_hp -= m_dmg
         logs.append(
             f"{monster.name} menyerang balik {m_dmg} damage "
@@ -837,17 +905,21 @@ async def cmd_hunt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     monster = make_scaled_monster(random.choice(area.monsters), area.id)
-    win, hp_left, logs, _ = do_battle(player["hp"], total["atk"], total["def"], total["crit"], total["dodge"], monster)
+    win, hp_left, logs, _ = do_battle(
+        player["hp"], total["atk"], total["def"], total["crit"], total["dodge"], total["lifesteal"], total["dmg_reduction"], total["burn"], monster
+    )
 
     if win:
+        bonus_gold = int(monster.gold_drop * (total["gold_gain"] / 100))
+        final_gold = monster.gold_drop + bonus_gold
         repo.update_stats(
             user.id,
             hp=hp_left,
-            gold_delta=monster.gold_drop,
+            gold_delta=final_gold,
             exp_delta=monster.exp_drop,
             set_last_hunt=now,
         )
-        logs.append(f"✅ Menang! +{monster.exp_drop} EXP, +{monster.gold_drop} Gold")
+        logs.append(f"✅ Menang! +{monster.exp_drop} EXP, +{final_gold} Gold")
         dropped_items = roll_drops(monster.name, extra_drop_rate=total["drop_rate"])
         for item_name in dropped_items:
             repo.upsert_inventory(user.id, item_name, 1)
@@ -867,7 +939,9 @@ async def cmd_battle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     total = compute_total_stats(player)
     area = get_area_by_id(int(player["current_area_id"]))
     monster = make_scaled_monster(random.choice(area.monsters), area.id)
-    win, hp_left, logs, _ = do_battle(player["hp"], total["atk"], total["def"], total["crit"], total["dodge"], monster)
+    win, hp_left, logs, _ = do_battle(
+        player["hp"], total["atk"], total["def"], total["crit"], total["dodge"], total["lifesteal"], total["dmg_reduction"], total["burn"], monster
+    )
     if win:
         reward_gold = monster.gold_drop // 2
         reward_exp = monster.exp_drop // 2
@@ -1038,7 +1112,9 @@ async def cmd_boss(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     total = compute_total_stats(player)
     area = get_area_by_id(int(player["current_area_id"]))
     monster = make_scaled_monster(area.boss, area.id, is_boss=True)
-    win, hp_left, logs, _ = do_battle(player["hp"], total["atk"], total["def"], total["crit"], total["dodge"], monster)
+    win, hp_left, logs, _ = do_battle(
+        player["hp"], total["atk"], total["def"], total["crit"], total["dodge"], total["lifesteal"], total["dmg_reduction"], total["burn"], monster
+    )
 
     if win:
         repo.update_stats(user.id, hp=hp_left, gold_delta=monster.gold_drop, exp_delta=monster.exp_drop)
