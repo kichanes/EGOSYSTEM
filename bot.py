@@ -48,11 +48,11 @@ class Area:
 
 
 MONSTERS: List[Monster] = [
-    Monster("Slime", 18, 2, 6, 10, 12),
-    Monster("Goblin", 26, 4, 9, 18, 20),
-    Monster("Wolf", 32, 5, 10, 24, 25),
-    Monster("Orc", 45, 6, 13, 38, 40),
-    Monster("Mini Dragon", 65, 8, 17, 60, 72),
+    Monster("Slime", 18, 2, 6, 7, 10),
+    Monster("Goblin", 26, 4, 9, 12, 16),
+    Monster("Wolf", 32, 5, 10, 16, 20),
+    Monster("Orc", 45, 6, 13, 22, 30),
+    Monster("Mini Dragon", 65, 8, 17, 34, 48),
 ]
 
 SHOP_ITEMS: Dict[str, Dict[str, object]] = {
@@ -82,28 +82,50 @@ SHOP_ITEMS: Dict[str, Dict[str, object]] = {
     "iron": {"price": 20, "type": "material", "name": "Iron", "rarity": "Uncommon"},
     "crystal": {"price": 45, "type": "material", "name": "Crystal", "rarity": "Rare"},
     "dungeon_key": {"price": 200, "type": "special", "name": "Dungeon Key", "rarity": "Legendary"},
+    "pet_chest": {"price": 500, "type": "pet_gacha", "name": "Pet Chest", "rarity": "Epic"},
 }
 
 PET_BONUS: Dict[str, Dict[str, int]] = {
-    "None": {"atk": 0, "def": 0, "hp": 0},
-    "Fire Wolf": {"atk": 5, "def": 0, "hp": 0},
+    "None": {"atk": 0, "def": 0, "hp": 0, "gold_gain": 0, "drop_rate": 0, "crit": 0},
+    "Piko": {"atk": 0, "def": 0, "hp": 5, "gold_gain": 5, "drop_rate": 2, "crit": 0},
+    "Leafy": {"atk": 0, "def": 2, "hp": 10, "gold_gain": 10, "drop_rate": 3, "crit": 0},
+    "Frostbite": {"atk": 8, "def": 0, "hp": 10, "gold_gain": 0, "drop_rate": 0, "crit": 3},
+    "Nightfang": {"atk": 15, "def": 2, "hp": 15, "gold_gain": 0, "drop_rate": 0, "crit": 8},
+    "Auroragon": {"atk": 24, "def": 8, "hp": 24, "gold_gain": 50, "drop_rate": 8, "crit": 10},
+    "Abyssion": {"atk": 36, "def": 10, "hp": 34, "gold_gain": 0, "drop_rate": 10, "crit": 15},
+    "Paradoxus": {"atk": 55, "def": 15, "hp": 45, "gold_gain": 40, "drop_rate": 25, "crit": 20},
+    "Aetherion": {"atk": 90, "def": 24, "hp": 70, "gold_gain": 60, "drop_rate": 35, "crit": 30},
 }
+
+PET_POOL: List[Dict[str, object]] = [
+    {"name": "Piko", "rarity": "Common", "chance": 50.0, "skills": ["Tiny Boost (+5% gold)", "Happy Aura (+luck kecil)"]},
+    {"name": "Leafy", "rarity": "Uncommon", "chance": 25.0, "skills": ["Nature Gift (+10% gold)", "Regrowth (regen HP pelan)"]},
+    {"name": "Frostbite", "rarity": "Rare", "chance": 12.0, "skills": ["Ice Strike (+20% damage)", "Freeze Chance (slow chance)"]},
+    {"name": "Nightfang", "rarity": "Epic", "chance": 7.0, "skills": ["Shadow Bite (+35% damage)", "Dark Boost (crit naik)"]},
+    {"name": "Auroragon", "rarity": "Legendary", "chance": 3.0, "skills": ["Aurora Burst (+60% damage)", "Wealth Blessing (+50% gold)", "Flight Aura (buff pet lain)"]},
+    {"name": "Abyssion", "rarity": "Mythical", "chance": 0.5, "skills": ["Abyssal Rage (+100% damage)", "Life Drain", "Fear Aura"]},
+    {"name": "Paradoxus", "rarity": "Secret", "chance": 0.1, "skills": ["Reality Break", "Glitch Boost", "Hidden Luck"]},
+    {"name": "Aetherion", "rarity": "Godly", "chance": 0.01, "skills": ["Divine Judgment (+200% damage)", "Infinite Blessing", "Time Control"]},
+]
 
 RARITY_ICON = {
     "Common": "⚪",
     "Uncommon": "🟢",
     "Rare": "🔵",
     "Epic": "🟣",
-    "Legendary": "🟠",
+    "Legendary": "🟡",
     "Mythic": "🔴",
+    "Mythical": "🔴",
+    "Secret": "✨",
+    "Godly": "🔱",
 }
 
 MONSTER_DROPS: Dict[str, List[Tuple[str, int]]] = {
-    "Slime": [("gel", 80), ("small_potion", 30), ("wood_sword", 5)],
-    "Goblin": [("iron", 40), ("antidote", 20), ("iron_sword", 5)],
-    "Wolf": [("small_potion", 35), ("wood", 60), ("ring_of_luck", 3)],
-    "Orc": [("iron_armor", 8), ("elixir", 25), ("crystal", 15)],
-    "Mini Dragon": [("flame_sword", 8), ("dungeon_key", 20), ("crystal", 35)],
+    "Slime": [("gel", 45), ("small_potion", 20), ("wood_sword", 2)],
+    "Goblin": [("iron", 25), ("antidote", 15), ("iron_sword", 2)],
+    "Wolf": [("small_potion", 20), ("wood", 35), ("ring_of_luck", 1)],
+    "Orc": [("iron_armor", 4), ("elixir", 12), ("crystal", 8)],
+    "Mini Dragon": [("flame_sword", 4), ("dungeon_key", 12), ("crystal", 15)],
 }
 
 AREAS: List[Area] = [
@@ -195,6 +217,7 @@ class RPGRepository:
             "equipped_accessory": "TEXT NOT NULL DEFAULT 'None'",
             "current_area_id": "INTEGER NOT NULL DEFAULT 1",
             "unlocked_area_id": "INTEGER NOT NULL DEFAULT 1",
+            "pet_pity": "INTEGER NOT NULL DEFAULT 0",
         }
         for col, definition in required_columns.items():
             if col not in existing_cols:
@@ -247,7 +270,7 @@ class RPGRepository:
     ) -> None:
         with self._connect() as conn:
             player = conn.execute(
-                "SELECT level, exp, hp, max_hp, attack, gold, base_hp FROM players WHERE user_id = ?",
+                "SELECT level, exp, hp, max_hp, attack, gold, base_hp, base_attack, base_defense FROM players WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
             if not player:
@@ -257,13 +280,21 @@ class RPGRepository:
             new_level = player["level"]
             new_max_hp = player["max_hp"]
             new_base_hp = player["base_hp"]
+            new_base_attack = player["base_attack"]
+            new_base_defense = player["base_defense"]
+            leveled_up = False
             while new_exp >= new_level * 100:
                 new_exp -= new_level * 100
                 new_level += 1
                 new_max_hp += 10
                 new_base_hp += 10
+                new_base_attack += 2
+                new_base_defense += 1
+                leveled_up = True
 
             final_hp = player["hp"] if hp is None else max(0, min(hp, new_max_hp))
+            if leveled_up:
+                final_hp = new_max_hp
             final_attack = max(1, player["attack"] + attack_delta)
             final_gold = max(0, player["gold"] + gold_delta)
             if set_last_hunt is not None:
@@ -276,10 +307,10 @@ class RPGRepository:
             conn.execute(
                 """
                 UPDATE players
-                SET level = ?, exp = ?, hp = ?, max_hp = ?, base_hp = ?, attack = ?, gold = ?, last_hunt_ts = ?
+                SET level = ?, exp = ?, hp = ?, max_hp = ?, base_hp = ?, base_attack = ?, base_defense = ?, attack = ?, gold = ?, last_hunt_ts = ?
                 WHERE user_id = ?
                 """,
-                (new_level, new_exp, final_hp, new_max_hp, new_base_hp, final_attack, final_gold, last_hunt_ts, user_id),
+                (new_level, new_exp, final_hp, new_max_hp, new_base_hp, new_base_attack, new_base_defense, final_attack, final_gold, last_hunt_ts, user_id),
             )
 
     def set_guild(self, user_id: int, guild_id: int) -> None:
@@ -362,6 +393,30 @@ SOLO_BOSS_BATTLES: Dict[int, Dict[str, object]] = {}
 DUNGEON_RAIDS: Dict[int, Dict[str, object]] = {}
 
 
+def bronze_value(gold: int = 0, silver: int = 0, bronze: int = 0) -> int:
+    return gold * 10000 + silver * 100 + bronze
+
+
+def format_balance(total_bronze: int) -> str:
+    gold = total_bronze // 10000
+    silver = (total_bronze % 10000) // 100
+    bronze = total_bronze % 100
+    return f"{gold} gold, {silver} silver, {bronze} bronze"
+
+
+def roll_pet_from_chest(guaranteed_legendary: bool = False) -> Dict[str, object]:
+    pool = PET_POOL
+    if guaranteed_legendary:
+        pool = [p for p in PET_POOL if str(p["rarity"]) in {"Legendary", "Mythical", "Secret", "Godly"}]
+    rolled = random.uniform(0, 100)
+    cumulative = 0.0
+    for pet in pool:
+        cumulative += float(pet["chance"])
+        if rolled <= cumulative:
+            return pet
+    return pool[0]
+
+
 def get_player_rank(user_id: int) -> Optional[int]:
     board = repo.get_leaderboard(limit=10000)
     for idx, row in enumerate(board, start=1):
@@ -406,7 +461,7 @@ def compute_total_stats(player: sqlite3.Row) -> Dict[str, int]:
     weapon_bonus = get_equipment_bonus(player["equipped_weapon"], "weapon")
     armor_bonus = get_equipment_bonus(player["equipped_armor"], "armor")
     accessory_bonus = get_equipment_bonus(player["equipped_accessory"], "accessory")
-    pet_bonus = PET_BONUS.get(player["pet"], {"atk": 0, "def": 0, "hp": 0})
+    pet_bonus = PET_BONUS.get(player["pet"], {"atk": 0, "def": 0, "hp": 0, "gold_gain": 0, "drop_rate": 0, "crit": 0})
     total_hp = int(player["base_hp"]) + weapon_bonus["hp"] + armor_bonus["hp"] + accessory_bonus["hp"] + int(pet_bonus["hp"])
     total_atk = int(player["base_attack"]) + weapon_bonus["atk"] + armor_bonus["atk"] + accessory_bonus["atk"] + int(pet_bonus["atk"])
     total_def = int(player["base_defense"]) + weapon_bonus["def"] + armor_bonus["def"] + accessory_bonus["def"] + int(pet_bonus["def"])
@@ -414,12 +469,12 @@ def compute_total_stats(player: sqlite3.Row) -> Dict[str, int]:
         "hp": total_hp,
         "atk": total_atk,
         "def": total_def,
-        "crit": weapon_bonus["crit"] + accessory_bonus["crit"],
-        "drop_rate": accessory_bonus["drop_rate"],
+        "crit": weapon_bonus["crit"] + accessory_bonus["crit"] + int(pet_bonus.get("crit", 0)),
+        "drop_rate": accessory_bonus["drop_rate"] + int(pet_bonus.get("drop_rate", 0)),
         "dodge": accessory_bonus["dodge"],
         "lifesteal": weapon_bonus["lifesteal"] + armor_bonus["lifesteal"] + accessory_bonus["lifesteal"],
         "dmg_reduction": armor_bonus["dmg_reduction"],
-        "gold_gain": accessory_bonus["gold_gain"],
+        "gold_gain": accessory_bonus["gold_gain"] + int(pet_bonus.get("gold_gain", 0)),
         "burn": weapon_bonus["burn"],
     }
 
@@ -444,8 +499,8 @@ def make_scaled_monster(monster_name: str, area_id: int, is_boss: bool = False) 
     hp = int(20 * (1.25 ** (area_id - 1)))
     atk_min = int(3 * (1.15 ** (area_id - 1)))
     atk_max = max(atk_min + 2, int(6 * (1.15 ** (area_id - 1))))
-    gold = int(12 * (1.2 ** (area_id - 1)))
-    exp = int(15 * (1.25 ** (area_id - 1)))
+    gold = int(8 * (1.15 ** (area_id - 1)))
+    exp = int(12 * (1.2 ** (area_id - 1)))
     if is_boss:
         hp = int(hp * 2.4)
         atk_min = int(atk_min * 1.6)
@@ -504,13 +559,13 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "⚔️ Battle:\n"
         "/hunt (/ht), /adventure (/adv), /fight (/f), /boss, /dungeon (/dg)\n\n"
         "🎒 Item:\n"
-        "/equip (/eq), /unequip (/uneq), /use, /drop\n\n"
+        "/eq, /unequip (/uneq), /use, /drop\n\n"
         "🛒 Ekonomi:\n"
-        "/shop (/sh), /buy, /sell, /balance (/bal)\n\n"
+        "/shop (/sh), /buy <item> <qty>, /sell, /balance (/bal)\n\n"
         "🌍 Area:\n"
         "/area (/a), /travel (/go), /unlock (/ul)\n\n"
         "👥 Sosial:\n"
-        "/leaderboard (/top), /guild (/g), /duel\n"
+        "/leaderboard (/top), /guild (/g), /duel (mulai Lv 5)\n"
     )
     await update.effective_message.reply_text(text)
 
@@ -572,9 +627,11 @@ async def on_menu_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     if data == "menu:shop":
         await query.edit_message_text(
-            "🛒 SHOP\nGunakan /shop atau /buy <item> <qty>.",
+            "🛒 SHOP\nPilih kategori:",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🧃 Potion", callback_data="shop:buy:potion"), InlineKeyboardButton("🗡️ Wood Sword", callback_data="shop:buy:wood_sword")],
+                [InlineKeyboardButton("⚔️ Weapon", callback_data="shop:cat:weapon"), InlineKeyboardButton("🛡️ Armor", callback_data="shop:cat:armor")],
+                [InlineKeyboardButton("💍 Accessory", callback_data="shop:cat:accessory"), InlineKeyboardButton("🧪 Consumable", callback_data="shop:cat:consumable")],
+                [InlineKeyboardButton("🐾 Pet Gacha", callback_data="shop:cat:pet_gacha")],
                 [InlineKeyboardButton("🔙 Back", callback_data="menu:main")],
             ]),
         )
@@ -618,6 +675,12 @@ async def on_menu_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await cmd_dungeon(update, context)
         return
 
+    if data.startswith("shop:cat:"):
+        category = data.split(":")[-1]
+        context.args = [category]
+        await cmd_shop(update, context)
+        return
+
     if data.startswith("shop:buy:"):
         item = data.split(":")[-1]
         context.args = [item, "1"]
@@ -631,7 +694,7 @@ async def on_menu_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         kind = data.split(":")[-1]
         reward = 50 if kind == "daily" else 200
         repo.update_stats(user.id, gold_delta=reward)
-        await query.message.reply_text(f"✅ Reward {kind} diklaim: +{reward} gold")
+        await query.message.reply_text(f"✅ Reward {kind} diklaim: +{reward} bronze")
 
 
 async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -660,7 +723,7 @@ async def cmd_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         f"❤️ HP       : {p['hp']} / {total['hp']}\n"
         f"⚔️ ATK      : {total['atk']}\n"
         f"🛡️ DEF      : {total['def']}\n\n"
-        f"💰 Gold     : {p['gold']:,}\n"
+        f"💰 Balance  : {format_balance(int(p['gold']))}\n"
         f"💎 Gems     : {p['gems']:,}\n\n"
         f"🗡️ Weapon   : {equipped_weapon_name}\n"
         f"🛡️ Armor    : {equipped_armor_name}\n"
@@ -691,12 +754,25 @@ async def cmd_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     repo.ensure_player(user.id, user.username)
 
-    valid_categories = {"weapon", "armor", "accessory", "consumable", "material", "special"}
-    if not args or (len(args) == 1 and args[0] in valid_categories):
-        only_category = args[0] if args and args[0] in valid_categories else None
-        lines = ["🛒 Shop list:"]
+    valid_categories = {"weapon", "armor", "accessory", "consumable", "pet_gacha", "material", "special"}
+    if not args:
+        kb = ReplyKeyboardMarkup(
+            [["Weapon", "Armor"], ["Accesory", "Consumable"], ["Pet Gacha"]],
+            resize_keyboard=True,
+            one_time_keyboard=True,
+        )
+        await update.effective_message.reply_text("🛒 Pilih kategori shop:", reply_markup=kb)
+        return
+
+    normalized = args[0].lower()
+    if normalized == "accesory":
+        normalized = "accessory"
+
+    if len(args) == 1 and normalized in valid_categories:
+        only_category = normalized
+        lines = [f"🛒 Shop list [{only_category}]:"]
         for name, meta in SHOP_ITEMS.items():
-            if only_category and meta["type"] != only_category:
+            if meta["type"] != only_category:
                 continue
             if meta["type"] == "consumable":
                 effect = f"heal +{meta.get('heal', 0)} | exp +{meta.get('exp', 0)}"
@@ -716,23 +792,35 @@ async def cmd_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     f"Drop +{meta.get('drop_rate', 0)}% | Gold +{meta.get('gold_gain', 0)}% | "
                     f"Dodge +{meta.get('dodge', 0)}% | Lifesteal +{meta.get('lifesteal', 0)}%"
                 )
+            elif meta["type"] == "pet_gacha":
+                effect = "Buka pet chest untuk dapat pet random + pity 100x => Legendary+"
             else:
                 effect = f"Kategori: {meta['type']}"
             rarity = str(meta.get("rarity", "Common"))
-            lines.append(f"- {name}: {meta['price']} gold ({effect}) {RARITY_ICON.get(rarity, '⚪')} {rarity}")
-        lines.append("\nKategori: /shop weapon | /shop armor | /shop accessory | /shop consumable")
-        lines.append("Beli: /shop buy <item> <qty>")
-        lines.append("Equip: /item equip <item_key>")
+            lines.append(f"- {name}: {meta['price']} bronze ({effect}) {RARITY_ICON.get(rarity, '⚪')} {rarity}")
+        if only_category == "pet_gacha":
+            lines.append("\n🎁 Pet Drop Rate:")
+            for pet in PET_POOL:
+                skill_text = ", ".join(pet["skills"])  # type: ignore[arg-type]
+                lines.append(f"{RARITY_ICON.get(str(pet['rarity']), '⚪')} {pet['rarity']} {pet['name']} → {pet['chance']}% | {skill_text}")
+        lines.append("\nKategori: /shop weapon | /shop armor | /shop accessory | /shop consumable | /shop pet_gacha")
+        lines.append("Beli: /buy <item> <qty>")
+        lines.append("Equip: /eq <item_key>")
         await update.effective_message.reply_text("\n".join(lines))
         return
 
-    if args[0] != "buy" or len(args) < 2:
-        await update.effective_message.reply_text("Format: /shop buy <item> <qty>")
-        return
+    await update.effective_message.reply_text("Format: /shop <kategori> (weapon/armor/accessory/consumable/pet_gacha)")
 
-    item = args[1].lower()
+
+async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    repo.ensure_player(user.id, user.username)
+    if len(context.args) < 1:
+        await update.effective_message.reply_text("Format: /buy <item> <qty>")
+        return
+    item = context.args[0].lower()
     item = {"potion": "small_potion"}.get(item, item)
-    qty = int(args[2]) if len(args) > 2 and args[2].isdigit() else 1
+    qty = int(context.args[1]) if len(context.args) > 1 and context.args[1].isdigit() else 1
     if item not in SHOP_ITEMS:
         await update.effective_message.reply_text("Item tidak tersedia.")
         return
@@ -743,12 +831,29 @@ async def cmd_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     player = repo.get_player(user.id)
     total = int(SHOP_ITEMS[item]["price"]) * qty
     if player["gold"] < total:
-        await update.effective_message.reply_text("Gold tidak cukup.")
+        await update.effective_message.reply_text("Balance tidak cukup.")
         return
 
     repo.update_stats(user.id, gold_delta=-total)
+    if item == "pet_chest":
+        rewards: List[str] = []
+        with repo._connect() as conn:
+            pity = int(conn.execute("SELECT pet_pity FROM players WHERE user_id = ?", (user.id,)).fetchone()[0])
+            for _ in range(qty):
+                pity += 1
+                guaranteed = pity >= 100
+                pet = roll_pet_from_chest(guaranteed_legendary=guaranteed)
+                if guaranteed:
+                    pity = 0
+                with conn:
+                    conn.execute("UPDATE players SET pet = ?, pet_pity = ? WHERE user_id = ?", (str(pet["name"]), pity, user.id))
+                rewards.append(f"{RARITY_ICON.get(str(pet['rarity']), '⚪')} {pet['rarity']} - {pet['name']}")
+        await update.effective_message.reply_text(
+            f"🎁 Kamu membuka {qty}x pet chest.\n" + "\n".join(rewards[:10]) + f"\nSisa pity: {pity}/100"
+        )
+        return
     repo.upsert_inventory(user.id, item, qty)
-    await update.effective_message.reply_text(f"Berhasil beli {qty}x {item} seharga {total} gold.")
+    await update.effective_message.reply_text(f"Berhasil beli {qty}x {item} seharga {total} bronze.")
 
 
 async def cmd_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -756,11 +861,11 @@ async def cmd_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     repo.ensure_player(user.id, user.username)
 
     if len(context.args) < 1:
-        await update.effective_message.reply_text("Format: /item use <nama_item> | /item equip <item_key>")
+        await update.effective_message.reply_text("Format: /item use <nama_item> | /eq <item_key>")
         return
 
     if context.args[0] not in {"use", "equip"} or len(context.args) < 2:
-        await update.effective_message.reply_text("Format: /item use <nama_item> | /item equip <item_key>")
+        await update.effective_message.reply_text("Format: /item use <nama_item> | /eq <item_key>")
         return
 
     action = context.args[0]
@@ -781,7 +886,7 @@ async def cmd_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if action == "use":
         if meta["type"] != "consumable":
-            await update.effective_message.reply_text("Item ini bukan consumable. Gunakan /item equip <item_key>.")
+            await update.effective_message.reply_text("Item ini bukan consumable. Gunakan /eq <item_key>.")
             return
         total = compute_total_stats(player)
         heal = int(meta.get("heal", 0))
@@ -836,16 +941,11 @@ async def cmd_unequip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await update.effective_message.reply_text(f"✅ {slot} berhasil dilepas.")
 
 
-async def cmd_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    context.args = ["buy", *context.args]
-    await cmd_shop(update, context)
-
-
 async def cmd_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     repo.ensure_player(user.id, user.username)
     p = repo.get_player(user.id)
-    await update.effective_message.reply_text(f"💰 Gold: {p['gold']:,}\n💎 Gems: {p['gems']:,}")
+    await update.effective_message.reply_text(f"💰 Balance: {format_balance(int(p['gold']))}\n💎 Gems: {p['gems']:,}")
 
 
 async def cmd_travel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -928,7 +1028,7 @@ async def cmd_hunt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             exp_delta=monster.exp_drop,
             set_last_hunt=now,
         )
-        logs.append(f"✅ Menang! +{monster.exp_drop} EXP, +{final_gold} Gold")
+        logs.append(f"✅ Menang! +{monster.exp_drop} EXP, +{final_gold} bronze")
         dropped_items = roll_drops(monster.name, extra_drop_rate=total["drop_rate"])
         for item_name in dropped_items:
             repo.upsert_inventory(user.id, item_name, 1)
@@ -936,7 +1036,7 @@ async def cmd_hunt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         penalty = min(player["gold"], 15)
         repo.update_stats(user.id, hp=1, gold_delta=-penalty, set_last_hunt=now)
-        logs.append(f"❌ Kalah. Kamu kehilangan {penalty} gold dan HP jadi 1.")
+        logs.append(f"❌ Kalah. Kamu kehilangan {penalty} bronze dan HP jadi 1.")
 
     await update.effective_message.reply_text("\n".join(logs[:20]))
 
@@ -955,7 +1055,7 @@ async def cmd_battle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         reward_gold = monster.gold_drop // 2
         reward_exp = monster.exp_drop // 2
         repo.update_stats(user.id, hp=hp_left, gold_delta=reward_gold, exp_delta=reward_exp)
-        logs.append(f"Sparring selesai: +{reward_exp} EXP, +{reward_gold} Gold")
+        logs.append(f"Sparring selesai: +{reward_exp} EXP, +{reward_gold} bronze")
     else:
         repo.update_stats(user.id, hp=max(1, hp_left))
         logs.append("Kamu kalah di battle latihan.")
@@ -990,7 +1090,7 @@ async def cmd_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     lines = ["🏆 Leaderboard Top 10"]
     for i, row in enumerate(data, start=1):
-        lines.append(f"{i}. {row['username']} | Lv {row['level']} | EXP {row['exp']} | Gold {row['gold']}")
+        lines.append(f"{i}. {row['username']} | Lv {row['level']} | EXP {row['exp']} | Balance {format_balance(int(row['gold']))}")
     await update.effective_message.reply_text("\n".join(lines))
 
 
@@ -1065,7 +1165,7 @@ async def cmd_trade(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.effective_message.reply_text("Trade gagal: stok item pengirim tidak cukup.")
             return
         if to_user["gold"] < trade["price"]:
-            await update.effective_message.reply_text("Gold kamu tidak cukup untuk menerima trade.")
+            await update.effective_message.reply_text("Balance kamu tidak cukup untuk menerima trade.")
             return
 
         repo.upsert_inventory(from_user["user_id"], trade["item_name"], -trade["qty"])
@@ -1106,7 +1206,7 @@ async def cmd_area(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text("Area tidak valid.")
         return
     if target > unlocked:
-        await update.effective_message.reply_text("Area masih terkunci. Kalahkan boss area sebelumnya.")
+        await update.effective_message.reply_text("Area masih terkunci. Clear raid /dungeon (/dg) area sebelumnya.")
         return
 
     with repo._connect() as conn:
@@ -1177,13 +1277,9 @@ async def cmd_boss(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         reward_gold = boss.gold_drop
         reward_exp = boss.exp_drop
         repo.update_stats(user.id, hp=max(1, p_hp), gold_delta=reward_gold, exp_delta=reward_exp)
-        unlocked = int(player["unlocked_area_id"])
-        if area.id == unlocked and unlocked < len(AREAS):
-            with repo._connect() as conn:
-                conn.execute("UPDATE players SET unlocked_area_id = ? WHERE user_id = ?", (unlocked + 1, user.id))
-            logs.append(f"🔓 Area baru terbuka: {get_area_by_id(unlocked + 1).name}")
         del SOLO_BOSS_BATTLES[user.id]
-        logs.append(f"🎉 Boss kalah! +{reward_exp} EXP +{reward_gold} Gold")
+        logs.append(f"🎉 Boss kalah! +{reward_exp} EXP +{reward_gold} bronze")
+        logs.append("ℹ️ Area baru hanya terbuka lewat clear /dungeon (/dg).")
         await update.effective_message.reply_text("\n".join(logs))
         return
 
@@ -1199,7 +1295,7 @@ async def cmd_boss(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         penalty = int(player["gold"] * 0.1)
         repo.update_stats(user.id, hp=1, gold_delta=-penalty)
         del SOLO_BOSS_BATTLES[user.id]
-        logs.append(f"💀 Kamu kalah. Penalti {penalty} gold.")
+        logs.append(f"💀 Kamu kalah. Penalti {penalty} bronze.")
     else:
         state["player_hp"] = p_hp
         state["boss_hp"] = boss_hp
@@ -1288,6 +1384,7 @@ async def cmd_dungeon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.effective_message.reply_text(
             f"🏰 Dungeon dimulai melawan {area.boss}!\n"
             f"Urutan turn: {', '.join(str(m) for m in members)}\n"
+            "Mechanic: boss bisa Enrage/AOE. Kadang perlu ada yang defend untuk lindungi party.\n"
             "Aksi leader/party: /dungeon attack | /dungeon skill | /dungeon item | /dungeon defend"
         )
         return
@@ -1338,7 +1435,7 @@ async def cmd_dungeon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 for uid in members:
                     conn.execute("UPDATE players SET unlocked_area_id = ? WHERE user_id = ?", (unlocked + 1, uid))
         del DUNGEON_RAIDS[leader_id]
-        logs.append("🎉 Dungeon clear! Semua anggota +500 EXP +300 Gold")
+        logs.append("🎉 Dungeon clear! Semua anggota +500 EXP +300 bronze")
         await update.effective_message.reply_text("\n".join(logs))
         return
 
@@ -1347,6 +1444,9 @@ async def cmd_dungeon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         # Boss turn
         hps = raid["player_hp"]  # type: ignore[assignment]
         boss_dmg = random.randint(int(raid["boss_atk_min"]), int(raid["boss_atk_max"]))
+        if random.randint(1, 100) <= 25:
+            boss_dmg = int(boss_dmg * 1.5)
+            logs.append("☄️ Mechanic: Boss ENRAGE! Damage meningkat 50% turn ini.")
         for uid in members:
             pp = repo.get_player(uid)
             stats = compute_total_stats(pp)
@@ -1359,7 +1459,7 @@ async def cmd_dungeon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 pp = repo.get_player(uid)
                 repo.update_stats(uid, hp=1, gold_delta=-int(pp["gold"] * 0.1))
             del DUNGEON_RAIDS[leader_id]
-            logs.append("💀 Party wiped. Penalti 10% gold.")
+            logs.append("💀 Party wiped. Penalti 10% balance.")
             await update.effective_message.reply_text("\n".join(logs))
             return
         turn_index = 0
@@ -1421,7 +1521,39 @@ async def cmd_drop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_duel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.effective_message.reply_text("Fitur duel PvP belum aktif.")
+    user = update.effective_user
+    repo.ensure_player(user.id, user.username)
+    me = repo.get_player(user.id)
+    if me["level"] < 5:
+        await update.effective_message.reply_text("PvP/Duel baru terbuka mulai Level 5.")
+        return
+    if not context.args or not context.args[0].isdigit():
+        await update.effective_message.reply_text("Format: /duel <user_id_lawan>")
+        return
+    enemy_id = int(context.args[0])
+    if enemy_id == user.id:
+        await update.effective_message.reply_text("Kamu tidak bisa duel dengan diri sendiri.")
+        return
+    enemy = repo.get_player(enemy_id)
+    if not enemy:
+        await update.effective_message.reply_text("Lawan belum terdaftar.")
+        return
+    if enemy["level"] < 5:
+        await update.effective_message.reply_text("Lawan belum level 5, duel belum bisa dimulai.")
+        return
+
+    my_stats = compute_total_stats(me)
+    enemy_stats = compute_total_stats(enemy)
+    my_score = my_stats["atk"] + my_stats["def"] + random.randint(1, 25)
+    enemy_score = enemy_stats["atk"] + enemy_stats["def"] + random.randint(1, 25)
+    winner = me if my_score >= enemy_score else enemy
+    reward = min(bronze_value(gold=5), bronze_value(bronze=59 + winner["level"] * 17))
+    repo.update_stats(int(winner["user_id"]), gold_delta=reward, hp=compute_total_stats(winner)["hp"])
+    await update.effective_message.reply_text(
+        f"⚔️ Duel {me['username']} vs {enemy['username']}\n"
+        f"Pemenang: {winner['username']}\n"
+        f"Reward: {format_balance(reward)}"
+    )
 
 
 def main() -> None:
