@@ -356,6 +356,10 @@ class RPGRepository:
 
 
 repo = RPGRepository(DB_PATH)
+PARTIES: Dict[int, Dict[str, object]] = {}
+USER_TO_PARTY: Dict[int, int] = {}
+SOLO_BOSS_BATTLES: Dict[int, Dict[str, object]] = {}
+DUNGEON_RAIDS: Dict[int, Dict[str, object]] = {}
 
 
 def get_player_rank(user_id: int) -> Optional[int]:
@@ -687,9 +691,13 @@ async def cmd_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     repo.ensure_player(user.id, user.username)
 
-    if not args:
+    valid_categories = {"weapon", "armor", "accessory", "consumable", "material", "special"}
+    if not args or (len(args) == 1 and args[0] in valid_categories):
+        only_category = args[0] if args and args[0] in valid_categories else None
         lines = ["🛒 Shop list:"]
         for name, meta in SHOP_ITEMS.items():
+            if only_category and meta["type"] != only_category:
+                continue
             if meta["type"] == "consumable":
                 effect = f"heal +{meta.get('heal', 0)} | exp +{meta.get('exp', 0)}"
             elif meta["type"] == "weapon":
@@ -712,7 +720,8 @@ async def cmd_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 effect = f"Kategori: {meta['type']}"
             rarity = str(meta.get("rarity", "Common"))
             lines.append(f"- {name}: {meta['price']} gold ({effect}) {RARITY_ICON.get(rarity, '⚪')} {rarity}")
-        lines.append("\nBeli: /shop buy <item> <qty>")
+        lines.append("\nKategori: /shop weapon | /shop armor | /shop accessory | /shop consumable")
+        lines.append("Beli: /shop buy <item> <qty>")
         lines.append("Equip: /item equip <item_key>")
         await update.effective_message.reply_text("\n".join(lines))
         return
@@ -1109,29 +1118,93 @@ async def cmd_boss(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     repo.ensure_player(user.id, user.username)
     player = repo.get_player(user.id)
-    total = compute_total_stats(player)
     area = get_area_by_id(int(player["current_area_id"]))
-    monster = make_scaled_monster(area.boss, area.id, is_boss=True)
-    win, hp_left, logs, _ = do_battle(
-        player["hp"], total["atk"], total["def"], total["crit"], total["dodge"], total["lifesteal"], total["dmg_reduction"], total["burn"], monster
-    )
+    total = compute_total_stats(player)
+    action = context.args[0].lower() if context.args else "start"
 
-    if win:
-        repo.update_stats(user.id, hp=hp_left, gold_delta=monster.gold_drop, exp_delta=monster.exp_drop)
-        logs.append(f"👑 Boss {area.boss} kalah! +{monster.exp_drop} EXP +{monster.gold_drop} Gold")
+    if action == "start":
+        SOLO_BOSS_BATTLES[user.id] = {
+            "boss": make_scaled_monster(area.boss, area.id, is_boss=True),
+            "player_hp": player["hp"],
+            "turn": "player",
+            "defending": False,
+        }
+        await update.effective_message.reply_text(
+            f"👑 Boss Battle dimulai vs {area.boss}!\n"
+            "Aksi: /boss attack | /boss skill | /boss item | /boss defend | /boss run"
+        )
+        return
+
+    if user.id not in SOLO_BOSS_BATTLES:
+        await update.effective_message.reply_text("Belum ada boss battle aktif. Gunakan /boss start.")
+        return
+
+    state = SOLO_BOSS_BATTLES[user.id]
+    boss: Monster = state["boss"]  # type: ignore[assignment]
+    p_hp = int(state["player_hp"])
+    boss_hp = boss.hp
+    if "boss_hp" in state:
+        boss_hp = int(state["boss_hp"])
+    logs: List[str] = []
+
+    if action == "run":
+        del SOLO_BOSS_BATTLES[user.id]
+        await update.effective_message.reply_text("🏃 Kamu kabur dari boss battle.")
+        return
+    if action in {"attack", "skill", "item", "defend"}:
+        if action == "defend":
+            state["defending"] = True
+            logs.append("🛡️ Kamu bertahan. Damage turn boss akan berkurang.")
+        elif action == "item":
+            heal = 40
+            p_hp = min(total["hp"], p_hp + heal)
+            logs.append(f"🧃 Kamu pakai item dan heal {heal}.")
+        else:
+            dmg = total["atk"] + (15 if action == "skill" else 0)
+            if random.randint(1, 100) <= total["crit"]:
+                dmg *= 2
+                logs.append("🔥 Critical!")
+            boss_hp -= dmg
+            if total["burn"] > 0:
+                boss_hp -= total["burn"]
+                logs.append(f"🔥 Burn {total['burn']} damage.")
+            logs.append(f"⚔️ Kamu hit boss {dmg}.")
+    else:
+        await update.effective_message.reply_text("Aksi invalid. Gunakan attack/skill/item/defend/run.")
+        return
+
+    if boss_hp <= 0:
+        reward_gold = boss.gold_drop
+        reward_exp = boss.exp_drop
+        repo.update_stats(user.id, hp=max(1, p_hp), gold_delta=reward_gold, exp_delta=reward_exp)
         unlocked = int(player["unlocked_area_id"])
         if area.id == unlocked and unlocked < len(AREAS):
             with repo._connect() as conn:
-                conn.execute(
-                    "UPDATE players SET unlocked_area_id = ? WHERE user_id = ?",
-                    (unlocked + 1, user.id),
-                )
+                conn.execute("UPDATE players SET unlocked_area_id = ? WHERE user_id = ?", (unlocked + 1, user.id))
             logs.append(f"🔓 Area baru terbuka: {get_area_by_id(unlocked + 1).name}")
-    else:
-        repo.update_stats(user.id, hp=max(1, hp_left))
-        logs.append("❌ Kamu kalah dari boss.")
+        del SOLO_BOSS_BATTLES[user.id]
+        logs.append(f"🎉 Boss kalah! +{reward_exp} EXP +{reward_gold} Gold")
+        await update.effective_message.reply_text("\n".join(logs))
+        return
 
-    await update.effective_message.reply_text("\n".join(logs[:20]))
+    boss_dmg = random.randint(boss.attack_min, boss.attack_max)
+    reduced = total["def"] + int(boss_dmg * (total["dmg_reduction"] / 100))
+    real = max(1, boss_dmg - reduced)
+    if state.get("defending"):
+        real = max(1, real // 2)
+        state["defending"] = False
+    p_hp -= real
+    logs.append(f"👹 Boss menyerang {real} damage.")
+    if p_hp <= 0:
+        penalty = int(player["gold"] * 0.1)
+        repo.update_stats(user.id, hp=1, gold_delta=-penalty)
+        del SOLO_BOSS_BATTLES[user.id]
+        logs.append(f"💀 Kamu kalah. Penalti {penalty} gold.")
+    else:
+        state["player_hp"] = p_hp
+        state["boss_hp"] = boss_hp
+        logs.append(f"HP kamu: {p_hp}/{total['hp']} | HP Boss: {boss_hp}/{boss.hp}")
+    await update.effective_message.reply_text("\n".join(logs))
 
 
 async def cmd_adventure(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1143,11 +1216,185 @@ async def cmd_fight(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_dungeon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await cmd_boss(update, context)
+    user = update.effective_user
+    repo.ensure_player(user.id, user.username)
+    args = context.args
+    if not args:
+        await update.effective_message.reply_text(
+            "Dungeon command:\n"
+            "/dungeon create | /dungeon join <leader_id> | /dungeon start\n"
+            "/dungeon attack|skill|item|defend"
+        )
+        return
+    action = args[0].lower()
+    if action == "create":
+        PARTIES[user.id] = {"leader": user.id, "members": [user.id], "started": False}
+        USER_TO_PARTY[user.id] = user.id
+        await update.effective_message.reply_text(
+            f"✅ Party dibuat. Leader ID: {user.id}\nMinta player lain join: /join {user.id}"
+        )
+        return
+    if action == "join":
+        if len(args) < 2 or not args[1].isdigit():
+            await update.effective_message.reply_text("Format: /dungeon join <leader_id>")
+            return
+        leader_id = int(args[1])
+        party = PARTIES.get(leader_id)
+        if not party:
+            await update.effective_message.reply_text("Party tidak ditemukan.")
+            return
+        members: List[int] = party["members"]  # type: ignore[assignment]
+        if user.id in members:
+            await update.effective_message.reply_text("Kamu sudah di party.")
+            return
+        if len(members) >= 4:
+            await update.effective_message.reply_text("Party penuh (max 4).")
+            return
+        members.append(user.id)
+        USER_TO_PARTY[user.id] = leader_id
+        await update.effective_message.reply_text(f"✅ Bergabung ke party {leader_id}.")
+        return
+    if action == "start":
+        leader_id = USER_TO_PARTY.get(user.id)
+        if leader_id != user.id:
+            await update.effective_message.reply_text("Hanya leader yang bisa start.")
+            return
+        party = PARTIES.get(user.id)
+        members: List[int] = party["members"]  # type: ignore[assignment]
+        if len(members) < 2:
+            await update.effective_message.reply_text("Minimal 2 player untuk dungeon.")
+            return
+        # Key check
+        for uid in members:
+            inv = {row["item_name"]: row["quantity"] for row in repo.get_inventory(uid)}
+            if inv.get("dungeon_key", 0) <= 0:
+                await update.effective_message.reply_text(f"User {uid} tidak punya dungeon_key.")
+                return
+        for uid in members:
+            repo.upsert_inventory(uid, "dungeon_key", -1)
+        p = repo.get_player(user.id)
+        area = get_area_by_id(int(p["current_area_id"]))
+        boss = make_scaled_monster(area.boss, area.id, is_boss=True)
+        DUNGEON_RAIDS[user.id] = {
+            "members": members,
+            "boss_name": area.boss,
+            "boss_hp": int(boss.hp * 2),
+            "boss_max_hp": int(boss.hp * 2),
+            "turn_index": 0,
+            "boss_atk_min": boss.attack_min,
+            "boss_atk_max": boss.attack_max,
+            "player_hp": {uid: repo.get_player(uid)["hp"] for uid in members},
+        }
+        await update.effective_message.reply_text(
+            f"🏰 Dungeon dimulai melawan {area.boss}!\n"
+            f"Urutan turn: {', '.join(str(m) for m in members)}\n"
+            "Aksi leader/party: /dungeon attack | /dungeon skill | /dungeon item | /dungeon defend"
+        )
+        return
+
+    # action phase
+    leader_id = USER_TO_PARTY.get(user.id)
+    if leader_id is None or leader_id not in DUNGEON_RAIDS:
+        await update.effective_message.reply_text("Belum ada raid aktif.")
+        return
+    raid = DUNGEON_RAIDS[leader_id]
+    members: List[int] = raid["members"]  # type: ignore[assignment]
+    turn_index = int(raid["turn_index"])
+    current_uid = members[turn_index]
+    if current_uid != user.id:
+        await update.effective_message.reply_text(f"Bukan giliranmu. Giliran user {current_uid}.")
+        return
+    boss_hp = int(raid["boss_hp"])
+    p = repo.get_player(user.id)
+    total = compute_total_stats(p)
+    logs: List[str] = []
+    if action == "attack":
+        dmg = total["atk"]
+        boss_hp -= dmg
+        logs.append(f"⚔️ User {user.id} menyerang {dmg}.")
+    elif action == "skill":
+        dmg = int(total["atk"] * 1.5)
+        boss_hp -= dmg
+        logs.append(f"✨ Skill! User {user.id} damage {dmg}.")
+    elif action == "item":
+        hps: Dict[int, int] = raid["player_hp"]  # type: ignore[assignment]
+        hps[user.id] = min(total["hp"], hps[user.id] + 40)
+        logs.append(f"🧃 User {user.id} heal 40.")
+    elif action == "defend":
+        logs.append(f"🛡️ User {user.id} bertahan.")
+    else:
+        await update.effective_message.reply_text("Aksi tidak valid.")
+        return
+
+    raid["boss_hp"] = boss_hp
+    if boss_hp <= 0:
+        for uid in members:
+            repo.update_stats(uid, exp_delta=500, gold_delta=300)
+        lead_player = repo.get_player(leader_id)
+        unlocked = int(lead_player["unlocked_area_id"])
+        area_now = int(lead_player["current_area_id"])
+        if area_now == unlocked and unlocked < len(AREAS):
+            with repo._connect() as conn:
+                for uid in members:
+                    conn.execute("UPDATE players SET unlocked_area_id = ? WHERE user_id = ?", (unlocked + 1, uid))
+        del DUNGEON_RAIDS[leader_id]
+        logs.append("🎉 Dungeon clear! Semua anggota +500 EXP +300 Gold")
+        await update.effective_message.reply_text("\n".join(logs))
+        return
+
+    turn_index += 1
+    if turn_index >= len(members):
+        # Boss turn
+        hps = raid["player_hp"]  # type: ignore[assignment]
+        boss_dmg = random.randint(int(raid["boss_atk_min"]), int(raid["boss_atk_max"]))
+        for uid in members:
+            pp = repo.get_player(uid)
+            stats = compute_total_stats(pp)
+            reduced = max(1, boss_dmg - stats["def"])
+            hps[uid] = max(0, hps[uid] - reduced)
+        logs.append(f"👹 Boss AOE menyerang party ({boss_dmg} raw).")
+        alive = [uid for uid in members if hps[uid] > 0]
+        if not alive:
+            for uid in members:
+                pp = repo.get_player(uid)
+                repo.update_stats(uid, hp=1, gold_delta=-int(pp["gold"] * 0.1))
+            del DUNGEON_RAIDS[leader_id]
+            logs.append("💀 Party wiped. Penalti 10% gold.")
+            await update.effective_message.reply_text("\n".join(logs))
+            return
+        turn_index = 0
+    raid["turn_index"] = turn_index
+    next_uid = members[turn_index]
+    logs.append(f"HP Boss: {boss_hp}/{raid['boss_max_hp']} | Giliran selanjutnya: {next_uid}")
+    await update.effective_message.reply_text("\n".join(logs))
 
 
 async def cmd_unlock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await cmd_boss(update, context)
+
+
+async def cmd_party(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not context.args:
+        await update.effective_message.reply_text("Party command: /party create | /party join <leader_id> | /party start")
+        return
+    action = context.args[0].lower()
+    if action == "create":
+        context.args = ["create"]
+    elif action == "join":
+        context.args = ["join", *(context.args[1:] if len(context.args) > 1 else [])]
+    elif action in {"start", "st"}:
+        context.args = ["start"]
+    await cmd_dungeon(update, context)
+
+
+async def cmd_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    context.args = ["join", *context.args]
+    await cmd_dungeon(update, context)
+
+
+async def cmd_st(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    context.args = ["start"]
+    await cmd_dungeon(update, context)
 
 
 async def cmd_sell(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1220,6 +1467,9 @@ def main() -> None:
     app.add_handler(CommandHandler("top", cmd_leaderboard))
     app.add_handler(CommandHandler("duel", cmd_duel))
     app.add_handler(CommandHandler("trade", cmd_trade))
+    app.add_handler(CommandHandler("party", cmd_party))
+    app.add_handler(CommandHandler("join", cmd_join))
+    app.add_handler(CommandHandler("st", cmd_st))
     app.add_handler(CommandHandler("area", cmd_area))
     app.add_handler(CommandHandler("a", cmd_area))
     app.add_handler(CommandHandler("travel", cmd_travel))
